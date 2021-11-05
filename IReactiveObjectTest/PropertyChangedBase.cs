@@ -1,29 +1,76 @@
 ﻿using ReactiveUI;
+using System;
 using System.ComponentModel;
+using System.Reactive;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace IReactiveObjectTest
 {
-    public class PropertyChangedBase : INotifyPropertyChanged, INotifyPropertyChanging, IReactiveObject
+    public class PropertyChangedBase : IReactiveObject
     {
+        private readonly Lazy<Unit> _propertyChangingEventsSubscribed;
+        private readonly Lazy<Unit> _propertyChangedEventsSubscribed;
+        public PropertyChangedBase()
+        {
+            _propertyChangingEventsSubscribed = new Lazy<Unit>(
+                                                        () =>
+                                                        {
+                                                            this.SubscribePropertyChangingEvents();
+                                                            return Unit.Default;
+                                                        },
+                                                        LazyThreadSafetyMode.PublicationOnly);
+            _propertyChangedEventsSubscribed = new Lazy<Unit>(
+                                                        () =>
+                                                        {
+                                                            this.SubscribePropertyChangedEvents();
+                                                            return Unit.Default;
+                                                        },
+                                                        LazyThreadSafetyMode.PublicationOnly);
+        }
+
         #region INotifyPropertyChanged
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-        public void RaisePropertyChanged([CallerMemberName] string? propertyName = null) => this.RaisePropertyChanged(new PropertyChangedEventArgs(propertyName));
+        /// <inheritdoc/>
+        public event PropertyChangedEventHandler? PropertyChanged
+        {
+            add
+            {
+                _ = _propertyChangedEventsSubscribed.Value;
+                PropertyChangedHandler += value;
+            }
+            remove => PropertyChangedHandler -= value;
+        }
+
+        private event PropertyChangedEventHandler? PropertyChangedHandler;
 
         #endregion
 
         #region INotifyPropertyChanging
 
-        public event PropertyChangingEventHandler? PropertyChanging;
-        public void RaisePropertyChanging([CallerMemberName] string? propertyName = null) => this.RaisePropertyChanging(new PropertyChangingEventArgs(propertyName));
+        private event PropertyChangingEventHandler? PropertyChangingHandler;
+
+        /// <inheritdoc/>
+        public event PropertyChangingEventHandler? PropertyChanging
+        {
+            add
+            {
+                _ = _propertyChangingEventsSubscribed.Value;
+                PropertyChangingHandler += value;
+            }
+            remove => PropertyChangingHandler -= value;
+        }
 
         #endregion
 
         #region IReactiveObject
 
-        public void RaisePropertyChanged(PropertyChangedEventArgs args) => PropertyChanged?.Invoke(this, args);
-        public void RaisePropertyChanging(PropertyChangingEventArgs args) => PropertyChanging?.Invoke(this, args);
+        /// <inheritdoc/>
+        void IReactiveObject.RaisePropertyChanged(PropertyChangedEventArgs args) =>
+            PropertyChangedHandler?.Invoke(this, args);
+        /// <inheritdoc/>
+        void IReactiveObject.RaisePropertyChanging(PropertyChangingEventArgs args) =>
+            PropertyChangingHandler?.Invoke(this, args);
 
         #endregion
     }
